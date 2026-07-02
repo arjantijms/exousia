@@ -93,7 +93,7 @@
         <dependency>
             <groupId>jakarta.servlet</groupId>
             <artifactId>jakarta.servlet-api</artifactId>
-            <version>6.2.0-M1</version>
+            <version>6.2.0-M2</version>
             <scope>provided</scope>
             <optional>true</optional>
         </dependency>
@@ -107,7 +107,7 @@
         <dependency>
             <groupId>org.javassist</groupId>
             <artifactId>javassist</artifactId>
-            <version>3.30.2-GA</version>
+            <version>3.32.0-GA</version>
             <scope>provided</scope>
             <optional>true</optional>
         </dependency>
@@ -175,7 +175,7 @@
             
             <plugin>
                 <artifactId>maven-compiler-plugin</artifactId>
-                <version>3.14.1</version>
+                <version>3.15.0</version>
                 <configuration>
                     <release>17</release>
                 </configuration>
@@ -186,7 +186,7 @@
             <plugin>
                 <groupId>org.apache.felix</groupId>
                 <artifactId>maven-bundle-plugin</artifactId>
-                <version>6.0.0</version>
+                <version>6.0.2</version>
                 <extensions>true</extensions>
                 <configuration>
                     <instructions>
