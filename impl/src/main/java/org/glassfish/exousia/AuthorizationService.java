@@ -56,6 +56,7 @@ import org.glassfish.exousia.mapping.SecurityRoleRef;
 import org.glassfish.exousia.modules.def.DefaultPolicy;
 import org.glassfish.exousia.modules.def.DefaultPolicyConfigurationFactory;
 import org.glassfish.exousia.permissions.JakartaPermissions;
+import org.glassfish.exousia.permissions.RestResourcePermission;
 
 import static jakarta.security.jacc.PolicyContext.HTTP_SERVLET_REQUEST;
 import static jakarta.security.jacc.PolicyContext.PRINCIPAL_MAPPER;
@@ -63,6 +64,9 @@ import static jakarta.security.jacc.PolicyContext.SUBJECT;
 import static java.lang.System.Logger.Level.DEBUG;
 import static java.lang.System.Logger.Level.ERROR;
 import static java.util.Collections.emptySet;
+import static org.glassfish.exousia.AuthorizationService.PermissionCheckResult.DENIED;
+import static org.glassfish.exousia.AuthorizationService.PermissionCheckResult.GRANTED;
+import static org.glassfish.exousia.AuthorizationService.PermissionCheckResult.NOT_APPLICABLE;
 import static org.glassfish.exousia.constraints.transformer.ConstraintsToPermissionsTransformer.createResourceAndDataPermissions;
 import static org.glassfish.exousia.permissions.RolesToPermissionsTransformer.createWebRoleRefPermission;
 
@@ -90,6 +94,14 @@ public class AuthorizationService {
     private final Map<String, jakarta.security.jacc.PrincipalMapper> principalMapper = new ConcurrentHashMap<>();
 
     private String constrainedUriRequestAttribute;
+
+    private final Permissions restResourcePermissions = new Permissions();
+
+    public static enum PermissionCheckResult {
+        NOT_APPLICABLE,
+        GRANTED,
+        DENIED
+    }
 
     public AuthorizationService(
             ServletContext servletContext,
@@ -233,7 +245,13 @@ public class AuthorizationService {
             addPermissionsToPolicy(jakartaResourceDataPermissions);
 
             // 4. Preserve any non-resource permissions that were already staged.
+            //    (Currently this should only be RestResourcePermissions)
             addPermissionsToPolicy(stagedConstraintResult.passThroughPermissions());
+
+            // 4.1 Collect Rest permissions to be able to do an applicable check.
+            //     TODO: May replace this later with a closed-world transformer
+            //           like we do for Web permissions
+            collectRestResourcePermissions(stagedConstraintResult.passThroughPermissions());
 
             // 5. Add servlet role-ref permissions
             JakartaPermissions jakartaRoleRefPermissions =
@@ -473,6 +491,64 @@ public class AuthorizationService {
                 principals);
     }
 
+    public PermissionCheckResult checkRestResourcePermissionIfApplicable(HttpServletRequest request) {
+        try {
+            Subject subject = PolicyContext.getContext(SUBJECT);
+
+            return checkRestResourcePermissionIfApplicable(
+                request,
+                subject);
+        } catch (PolicyContextException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    public PermissionCheckResult checkRestResourcePermissionIfApplicable(HttpServletRequest request, Subject subject) {
+        RestResourcePermission requestedPermission =
+            new RestResourcePermission(
+                getRestPath(request),
+                request.getMethod());
+
+        if (!restResourcePermissions.implies(requestedPermission)) {
+            return NOT_APPLICABLE;
+        }
+
+        return checkPermission(requestedPermission, subject)
+            ? GRANTED
+            : DENIED;
+    }
+
+    public PermissionCheckResult checkRestResourcePermissionIfApplicable(HttpServletRequest request, Set<Principal> principals) {
+        RestResourcePermission requestedPermission =
+            new RestResourcePermission(
+                getRestPath(request),
+                request.getMethod());
+
+        if (!restResourcePermissions.implies(requestedPermission)) {
+            return NOT_APPLICABLE;
+        }
+
+        return checkPermission(requestedPermission, principals)
+            ? GRANTED
+            : DENIED;
+    }
+
+    public boolean checkRestResourcePermission(HttpServletRequest request, Set<Principal> principals) {
+        return checkPermission(
+            new RestResourcePermission(
+                getRestPath(request),
+                request.getMethod()),
+            principals);
+    }
+
+    public boolean checkRestResourcePermission(HttpServletRequest request, Subject subject) {
+        return checkPermission(
+            new RestResourcePermission(
+                getRestPath(request),
+                request.getMethod()),
+            subject);
+    }
+
     public boolean checkWebRoleRefPermission(String servletName, String role) {
         try {
             Subject subject = PolicyContext.getContext(SUBJECT);
@@ -696,6 +772,21 @@ public class AuthorizationService {
         }
     }
 
+    private void collectRestResourcePermissions(JakartaPermissions permissions) {
+        collectRestResourcePermissions(permissions.getExcluded());
+        collectRestResourcePermissions(permissions.getUnchecked());
+
+        permissions.getPerRole()
+                   .values()
+                   .forEach(this::collectRestResourcePermissions);
+    }
+
+    private void collectRestResourcePermissions(Permissions permissions) {
+        permissions.elementsAsStream()
+                   .filter(RestResourcePermission.class::isInstance)
+                   .forEach(restResourcePermissions::add);
+    }
+
     private Policy getPolicy() {
         if (policy != null) {
             return policy;
@@ -726,6 +817,14 @@ public class AuthorizationService {
         }
 
         return relativeURI.replace(":", "%3A");
+    }
+
+    private String getRestPath(HttpServletRequest request) {
+        String path =
+            request.getRequestURI()
+                   .substring(request.getContextPath().length());
+
+        return path.isEmpty() ? "/" : path;
     }
 
     private PrincipalMapper getOrCreatePrincipalMapper(String contextId, Supplier<PrincipalMapper> principalMapperSupplier) {
