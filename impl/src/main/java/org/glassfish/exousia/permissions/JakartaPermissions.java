@@ -20,7 +20,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 /**
- * 
+ *
  * @author Arjan Tijms
  *
  */
@@ -34,7 +34,7 @@ public class JakartaPermissions {
 
     // Permissions for resources that require a role
     private final Map<String, Permissions> perRole = new HashMap<String, Permissions>();
-    
+
     public Permissions getExcluded() {
         return excluded;
     }
@@ -46,5 +46,28 @@ public class JakartaPermissions {
     public Map<String, Permissions> getPerRole() {
         return perRole;
     }
-    
+
+    /**
+     * Checks whether any permission at all has been added.
+     *
+     * @return true if no excluded, unchecked and per-role permissions are present.
+     */
+    public boolean isEmpty() {
+        if (hasPermissions(excluded) || hasPermissions(unchecked)) {
+            return false;
+        }
+
+        for (Permissions permissions : perRole.values()) {
+            if (hasPermissions(permissions)) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static boolean hasPermissions(Permissions permissions) {
+        return permissions.elements().hasMoreElements();
+    }
+
 }

@@ -107,28 +107,21 @@ public final class StagedPermissionsToConstraintsTransformer {
         }
     }
 
-    private static SecurityConstraint toExcludedConstraint(
-            WebResourcePermission permission) {
-
+    private static SecurityConstraint toExcludedConstraint(WebResourcePermission permission) {
         return toConstraint(
             requireSimpleUrlPattern(permission.getName()),
             MethodSelector.fromActions(permission.getActions()),
             Set.of());
     }
 
-    private static SecurityConstraint toUncheckedConstraint(
-            WebResourcePermission permission) {
-
+    private static SecurityConstraint toUncheckedConstraint(WebResourcePermission permission) {
         return toConstraint(
             requireSimpleUrlPattern(permission.getName()),
             MethodSelector.fromActions(permission.getActions()),
             null);
     }
 
-    private static SecurityConstraint toRoleConstraint(
-            PermissionKey permissionKey,
-            Set<String> roles) {
-
+    private static SecurityConstraint toRoleConstraint(PermissionKey permissionKey, Set<String> roles) {
         return toConstraint(
             requireSimpleUrlPattern(permissionKey.name()),
             MethodSelector.fromActions(permissionKey.actions()),
@@ -168,7 +161,7 @@ public final class StagedPermissionsToConstraintsTransformer {
 
         if (name.indexOf('{') >= 0 || name.indexOf('}') >= 0) {
             throw new IllegalArgumentException(
-                "JAX-RS template paths are not supported in this temporary bridge: "
+                "Jakarta REST template paths are not supported for WebResourcePermission. Should have become RestResourcePermission: "
                     + name);
         }
 
